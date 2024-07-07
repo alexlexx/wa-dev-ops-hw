@@ -1,0 +1,57 @@
+services:
+  gitlab-ce:
+    image: gitlab/gitlab-ce
+    env_file: .env
+    restart: unless-stopped
+    container_name: dev-ops-hw-gitlab-ce
+    hostname: 'mygitlab.local'
+    depends_on:
+      - minio
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url ENV['GITLAB_EXTERNAL_URL']
+        # Consolidated object storage configuration
+        gitlab_rails['object_store']['enabled'] = true
+        gitlab_rails['object_store']['proxy_download'] = true
+        gitlab_rails['object_store']['connection'] = {
+          'provider' => 'AWS',
+          'aws_access_key_id' => ENV['AWS_ACCESS_KEY_ID'],
+          'aws_secret_access_key' => ENV['AWS_SECRET_ACCESS_KEY'],
+          'enable_signature_v4_streaming' => false,
+          'aws_signature_version' => 2,
+          'endpoint' => ENV['GITLAB_MINIO_ENDPOINT'],
+          'path_style' => true
+        }
+        gitlab_rails['object_store']['objects']['artifacts']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['external_diffs']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['lfs']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['uploads']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['packages']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['dependency_proxy']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['terraform_state']['bucket'] = ENV['AWS_BUCKET_NAME']
+        gitlab_rails['object_store']['objects']['pages']['bucket'] = ENV['AWS_BUCKET_NAME']
+
+    ports:
+      - '80:80'
+      - '443:443'
+      - '22:22'
+    volumes:
+      - '$GITLAB_HOME/config:/etc/gitlab'
+      - '$GITLAB_HOME/logs:/var/log/gitlab'
+      - '$GITLAB_HOME/data:/var/opt/gitlab'
+    shm_size: '256m'
+
+  minio:
+    image: minio/minio
+    env_file: .env
+    restart: unless-stopped
+    container_name: dev-ops-hw-minio
+    environment:
+      MINIO_ROOT_USER: $MINIO_ROOT_USER
+      MINIO_ROOT_PASSWORD: $MINIO_ROOT_PASSWORD
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - './$MINIO_HOME:/data'
+    command: server /data --console-address ":9001"
